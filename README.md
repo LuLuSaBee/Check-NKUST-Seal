@@ -4,3 +4,5 @@
 conda install tensorflow
 
 conda install keras
+
+## Why we do this
