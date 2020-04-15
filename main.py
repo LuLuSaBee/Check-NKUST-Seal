@@ -37,7 +37,7 @@ class TFObjectDetection(ObjectDetection):
             return outputs[0]
 
 
-def main(image_filename):
+def image_main(image_filename):
     # Load a TensorFlow model
     graph_def = tf.compat.v1.GraphDef()
     with tf.io.gfile.GFile(MODEL_FILENAME, 'rb') as f:
@@ -56,6 +56,10 @@ def main(image_filename):
 
 if __name__ == '__main__':
     if len(sys.argv) <= 1:
-        print('USAGE: {} image_filename'.format(sys.argv[0]))
+        print('Not input \'Image Path\' or \'Device ID\''.format(sys.argv[0]))
     else:
-        main(sys.argv[1])
+        if len(sys.argv[1]) > 1:
+            image_main(sys.argv[1])
+        elif len(sys.argv[1]) == 1:
+            deviceid = int(sys.argv[1])
+            device_main(deviceid)
