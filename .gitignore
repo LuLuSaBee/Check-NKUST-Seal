@@ -2,3 +2,5 @@
 keras/
 .Backup/
 __pycache__
+build/
+dist/

@@ -1,4 +1,3 @@
-import sys
 import cv2
 import requests
 import numpy as np
@@ -31,7 +30,7 @@ class GUI():
         def openInputUrlForm():
             form = tk.Tk()
             form.title("Input URL")
-            form.geometry("+400+400")
+            form.geometry("+300+300")
             form_entry = tk.Entry(form)
             form_entry.focus()
             form_entry.pack()
@@ -99,7 +98,7 @@ class GUI():
 class ActionHandler():
     def __init__(self):
         super().__init__()
-        self.judge = Magistrate()
+        self.magistrate = Magistrate()
         self.img_formats = ("image/png", "image/jpeg", "image/gif", "image/jpg",
                             "image/tiff", "image/bmp", "image/x-xpm", "image/webp")
 
@@ -117,7 +116,7 @@ class ActionHandler():
         file_path = filedialog.askopenfilename()
         try:
             img = Image.open(file_path)
-            self.judge.showImage(img=img)
+            self.magistrate.showImage(img=img)
         except Image.UnidentifiedImageError:
             messagebox.showerror(
                 "Error", "File must be \"Image\"")
@@ -128,7 +127,7 @@ class ActionHandler():
             response = requests.get(url, timeout=3)
             if response.headers['content-type'] in self.img_formats:
                 img = Image.open(BytesIO(response.content))
-                self.judge.showImage(img=img)
+                self.magistrate.showImage(img=img)
                 return
             else:
                 string = "is not image"
@@ -144,7 +143,7 @@ class ActionHandler():
 
     def __openWebcam(self, deviceID):
         cap = cv2.VideoCapture(deviceID)
-        self.judge.showImage(cap=cap)
+        self.magistrate.showImage(cap=cap)
         cap.release()
         cv2.destroyAllWindows()
 
@@ -159,8 +158,6 @@ class Magistrate():
         self.model = Models()
 
     def showImage(self, img=None, cap=None):
-        target = []
-        isDone_judgehand = False
         if cap != None:
             width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
             height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
@@ -168,11 +165,11 @@ class Magistrate():
             cap.set(cv2.CAP_PROP_FRAME_WIDTH, int(width * scale_percent))
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, int(height * scale_percent))
         else:
-            cv2_img = cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2BGR)
-            height, width, c = cv2_img.shape
+            img = cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2BGR)
+            height, width, c = img.shape
             scale_percent = 600 / height
             newsize = (int(width * scale_percent), int(height * scale_percent))
-            cv2_img = cv2.resize(cv2_img, newsize)
+            img = cv2.resize(img, newsize)
 
         while True:
             if cap != None:
@@ -181,49 +178,54 @@ class Magistrate():
                     messagebox.showerror(
                         "Error", "VideoCapture.read() failed, Exiting...")
                     break
-                cv2.imshow('Checker', frame)
-                img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-            else:
-                cv2.imshow('Checker', cv2_img)
+                img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-            self.__put_to_trial(img)
+            verdict, fontcolor = self.__judge(img)
+            cv2.putText(img, verdict,
+                        (50, 50), cv2.FONT_ITALIC, 2, fontcolor, 4)
+            cv2.imshow('Checker', img)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 cv2.destroyAllWindows()
                 break
             else:
                 continue
 
-    def __put_to_trial(self, img):
-        predictions = self.__isHandJudge(img)
-        cv2_img = cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2BGR)
-        for pred_ret in predictions:
-            prob = pred_ret['probability']
-            tagID = pred_ret['tagId']
-            tagName = pred_ret['tagName']
-            bbox = pred_ret['boundingBox']
-            left = bbox['left']
-            top = bbox['top']
-            width = bbox['width']
-            height = bbox['height']
-            x1 = int(left * cv2_img.shape[1])
-            y1 = int(top * cv2_img.shape[0])
-            x2 = x1 + int(width * cv2_img.shape[1])
-            y2 = y1 + int(height * cv2_img.shape[0])
-            p0 = (max(x1, 15), max(y1, 15))
-            print(
-                f"probability is {prob}, tag id is {tagID}, tag name is {tagName}")
-            print(f"bounding box ({x1}, {x2}, {y1}, {y2})")
-            if prob < 0.5:
-                pass
-            info = "{:.2f}:-{}".format(prob, tagName)
-            cv2.rectangle(cv2_img, (x1, y1), (x2, y2), (0, 0, 255), 2)
-            cv2.putText(cv2_img, info, p0, cv2.FONT_ITALIC,
-                        0.6, (0, 255, 0), 2)
+    def __judge(self, img):
+        handPredictions = self.__isHandJudge(Image.fromarray(img))
+        img = cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2BGR)
+        for hand_pred_ret in handPredictions:
+            prob = hand_pred_ret['probability']
+            tagID = hand_pred_ret['tagId']
+            if tagID == 0 and prob > 0.2:
+                bbox = hand_pred_ret['boundingBox']
+                left = bbox['left']
+                top = bbox['top']
+                width = bbox['width']
+                height = bbox['height']
+                x1 = int(left * img.shape[1])
+                y1 = int(top * img.shape[0])
+                x2 = x1 + int(width * img.shape[1])
+                y2 = y1 + int(height * img.shape[0])
+                isHand = True
+                sealPredictions = self.__isSealJudge(Image.fromarray(img))
+                for seal_pred_ret in sealPredictions:
+                    seal_prob = seal_pred_ret['probability']
+                    seal_tagID = seal_pred_ret['tagId']
+                    if seal_tagID == 0 and seal_prob > 0.2:
+                        return "Pass", (0, 255, 0)
+
+        return "None", (0, 0, 0)
 
     def __isHandJudge(self, image):
         hand_model = TFObjectDetection(self.model.get_Hand_ModelandLabel())
 
         predictions = hand_model.predict_image(image)
+        return predictions
+
+    def __isSealJudge(self, image):
+        seal_model = TFObjectDetection(self.model.get_Seal_ModelandLabel())
+
+        predictions = seal_model.predict_image(image)
         return predictions
 
 

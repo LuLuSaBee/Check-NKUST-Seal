@@ -1,5 +1,4 @@
-from llsb_utils import *
+from llsb_utils import GUI
 
 if __name__ == '__main__':
-    model = Models()
     mygui = GUI()
