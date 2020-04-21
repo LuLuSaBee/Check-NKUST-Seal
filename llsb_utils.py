@@ -1,3 +1,4 @@
+import sys
 import cv2
 import requests
 import numpy as np
@@ -178,7 +179,7 @@ class Magistrate():
                     messagebox.showerror(
                         "Error", "VideoCapture.read() failed, Exiting...")
                     break
-                img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                img = frame
 
             verdict, fontcolor = self.__judge(img)
             cv2.putText(img, verdict,
@@ -197,6 +198,7 @@ class Magistrate():
             prob = hand_pred_ret['probability']
             tagID = hand_pred_ret['tagId']
             if tagID == 0 and prob > 0.2:
+                print("{tagID} {prob}")
                 bbox = hand_pred_ret['boundingBox']
                 left = bbox['left']
                 top = bbox['top']
@@ -212,6 +214,7 @@ class Magistrate():
                     seal_prob = seal_pred_ret['probability']
                     seal_tagID = seal_pred_ret['tagId']
                     if seal_tagID == 0 and seal_prob > 0.2:
+                        print("{tagID} {prob}")
                         return "Pass", (0, 255, 0)
 
         return "None", (0, 0, 0)
